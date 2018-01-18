@@ -66,4 +66,8 @@
     
     return 5;
 }
+- (UIEdgeInsets)guideMaskView:(ZWMGuideView *)guideMaskView insetsForItemAtIndex:(NSInteger)index{
+    return UIEdgeInsetsMake(-10, -10, -10, -10);
+}
+
 @end

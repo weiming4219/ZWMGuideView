@@ -331,7 +331,7 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     
     if (self.delegate && [self.delegate respondsToSelector:@selector(guideMaskView:insetsForItemAtIndex:)])
     {
-        [self.delegate guideMaskView:self insetsForItemAtIndex:self.currentIndex];
+        maskInsets = [self.delegate guideMaskView:self insetsForItemAtIndex:self.currentIndex];
     }
     
     visualRect.origin.x += maskInsets.left;
