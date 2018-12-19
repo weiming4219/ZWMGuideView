@@ -8,12 +8,20 @@
 
 #import "ZWMGuideView.h"
 
+#define ZWMNormal_RectMargin -4
+#define ZWMNormal_TextSpace 15
+#define ZWMNormal_ViewSpace 8
+#define ZWMNormal_CornerRadius 5
+
+
 typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
 {
     ZWMGuideMaskItemRegionLeftTop = 0,
     ZWMGuideMaskItemRegionLeftBottom,
     ZWMGuideMaskItemRegionRightTop,
-    ZWMGuideMaskItemRegionRightBottom
+    ZWMGuideMaskItemRegionRightBottom,
+    ZWMGuideMaskItemRegionLeft,
+    ZWMGuideMaskItemRegionRight
 };
 
 @interface ZWMGuideView()
@@ -133,7 +141,7 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     self.maskLayer.frame = self.bounds;
     self.maskLayer.fillColor = [UIColor blackColor].CGColor;
     
-    CGFloat maskCornerRadius = 5;
+    CGFloat maskCornerRadius = ZWMNormal_CornerRadius;
     
     if (self.delegate && [self.delegate respondsToSelector:@selector(guideMaskView:cornerRadiusForItemAtIndex:)])
     {
@@ -142,7 +150,6 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     
     /// 获取可见区域的路径(开始路径)
     UIBezierPath *visualPath = [UIBezierPath bezierPathWithRoundedRect:[self obtainVisualFrame] cornerRadius:maskCornerRadius];
-    
     /// 获取终点路径
     UIBezierPath *toPath = [UIBezierPath bezierPathWithRect:self.bounds];
     
@@ -179,10 +186,10 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     
     // 描述文字
     NSString *desc = [self.dataSource guideMaskView:self descriptionLabelForItemAtIndex:self.currentIndex];
-    self.textLabel.text = desc;
+    self.textLabel.text = desc?:@"";
     
     /// 每个 item 的文字与左右边框间的距离
-    CGFloat descInsetsX = 50;
+    CGFloat descInsetsX = ZWMNormal_TextSpace;
     
     if (self.delegate && [self.delegate respondsToSelector:@selector(guideMaskView:horizontalSpaceForDescriptionLabelAtIndex:)])
     {
@@ -190,7 +197,7 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     }
     
     /// 每个 item 的子视图（当前介绍的子视图、箭头、描述文字）之间的间距
-    CGFloat space = 10;
+    CGFloat space = ZWMNormal_ViewSpace;
     
     if (self.delegate && [self.delegate respondsToSelector:@selector(guideMaskView:spaceForSubviewsAtIndex:)])
     {
@@ -200,108 +207,215 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     /// 设置 文字 与 箭头的位置
     CGRect textRect, arrowRect;
     CGSize imgSize   = self.arrowImgView.image.size;
-    CGFloat maxWidth = self.bounds.size.width - descInsetsX * 2;
-    CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX)
-                                          options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
-                                       attributes:@{NSFontAttributeName : self.textLabel.font}
-                                          context:NULL].size;
     CGAffineTransform transform = CGAffineTransformIdentity;
-    
+    CGRect obtainFrame = [self obtainVisualFrame];
+    NSMutableParagraphStyle * paragraphStyle = [[NSParagraphStyle defaultParagraphStyle] mutableCopy];
+    paragraphStyle.lineBreakMode = self.textLabel.lineBreakMode; // NSLineBreakByWordWrapping;
+    NSDictionary *attrs = @{NSFontAttributeName : self.textLabel.font, NSParagraphStyleAttributeName : paragraphStyle};
+
     /// 获取 item 的 方位
     ZWMGuideMaskItemRegion itemRegion = [self obtainVisualRegion];
-    
+
     switch (itemRegion)
     {
         case ZWMGuideMaskItemRegionLeftTop:
         {
             /// 左上
             transform = CGAffineTransformMakeScale(-1, 1);
-            arrowRect = CGRectMake(CGRectGetMidX([self obtainVisualFrame]) - imgSize.width * 0.5,
-                                   CGRectGetMaxY([self obtainVisualFrame]) + space,
-                                   imgSize.width,
-                                   imgSize.height);
-            CGFloat x = 0;
-            
-            if (textSize.width < CGRectGetWidth([self obtainVisualFrame]))
-            {
-                x = CGRectGetMaxX(arrowRect) - textSize.width * 0.5;
-            }
-            else
-            {
+            arrowRect = CGRectMake(CGRectGetMidX(obtainFrame) - imgSize.width * 0.5,
+                                   CGRectGetMaxY(obtainFrame) + space,
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetWidth(self.bounds) - descInsetsX * 2;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            // 文字位置左下方.
+            CGFloat x = CGRectGetMidX(obtainFrame) - textSize.width * 0.5;
+            if (x<descInsetsX) {
                 x = descInsetsX;
             }
-            
             textRect = CGRectMake(x, CGRectGetMaxY(arrowRect) + space, textSize.width, textSize.height);
-            break;
-        }
+
+            CGFloat disHeight = CGRectGetHeight(self.bounds) - CGRectGetMaxY(textRect)-space;
+            if (disHeight< 0) {
+                if (-disHeight <= space*2) {
+                    arrowRect.origin.y += disHeight/2;
+                    textRect.origin.y += disHeight;
+                }else{
+                    arrowRect = CGRectZero;
+                    if (CGRectGetMaxY(obtainFrame)+space +textSize.height <= CGRectGetHeight(self.bounds)) {
+                        textRect.origin.y = CGRectGetMaxY(obtainFrame)+space;
+                    }else{
+                        textRect.origin.y = CGRectGetMaxY(obtainFrame);
+                    }
+                }
+            }
+            
+        } break;
         case ZWMGuideMaskItemRegionRightTop:
         {
             /// 右上
-            arrowRect = CGRectMake(CGRectGetMidX([self obtainVisualFrame]) - imgSize.width * 0.5,
-                                   CGRectGetMaxY([self obtainVisualFrame]) + space,
-                                   imgSize.width,
-                                   imgSize.height);
-            
-            CGFloat x = 0;
-            
-            if (textSize.width < CGRectGetWidth([self obtainVisualFrame]))
-            {
-                x = CGRectGetMinX(arrowRect) - textSize.width * 0.5;
+            arrowRect = CGRectMake(CGRectGetMidX(obtainFrame) - imgSize.width * 0.5,
+                                   CGRectGetMaxY(obtainFrame) + space,
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetWidth(self.bounds) - descInsetsX * 2;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            CGFloat x = CGRectGetMidX(obtainFrame)-textSize.width/2;
+            if (x+textSize.width >CGRectGetWidth(self.bounds)-descInsetsX) {
+                x = CGRectGetWidth(self.bounds)-descInsetsX-textSize.width;
             }
-            else
-            {
-                x = descInsetsX + maxWidth - textSize.width;
-            }
-            
             textRect = CGRectMake(x, CGRectGetMaxY(arrowRect) + space, textSize.width, textSize.height);
-            break;
-        }
+
+            CGFloat disHeight = CGRectGetHeight(self.bounds) - CGRectGetMaxY(textRect)-space;
+            if (disHeight< 0) {
+                if (-disHeight <= space*2) {
+                    arrowRect.origin.y += disHeight/2;
+                    textRect.origin.y += disHeight;
+                }else{
+                    arrowRect = CGRectZero;
+                    if (CGRectGetMaxY(obtainFrame)+space +textSize.height <= CGRectGetHeight(self.bounds)) {
+                        textRect.origin.y = CGRectGetMaxY(obtainFrame)+space;
+                    }else{
+                        textRect.origin.y = CGRectGetMaxY(obtainFrame);
+                    }
+                }
+            }
+            
+        } break;
         case ZWMGuideMaskItemRegionLeftBottom:
         {
             /// 左下
             transform = CGAffineTransformMakeScale(-1, -1);
-            arrowRect = CGRectMake(CGRectGetMidX([self obtainVisualFrame]) - imgSize.width * 0.5,
-                                   CGRectGetMinY([self obtainVisualFrame]) - space - imgSize.height,
-                                   imgSize.width,
-                                   imgSize.height);
-            
-            CGFloat x = 0;
-            
-            if (textSize.width < CGRectGetWidth([self obtainVisualFrame]))
-            {
-                x = CGRectGetMaxX(arrowRect) - textSize.width * 0.5;
-            }
-            else
-            {
+            arrowRect = CGRectMake(CGRectGetMidX(obtainFrame) - imgSize.width * 0.5,
+                                   CGRectGetMinY(obtainFrame) - space - imgSize.height,
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetWidth(self.bounds) - descInsetsX * 2;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            CGFloat x = CGRectGetMidX(obtainFrame) - textSize.width * 0.5;
+            if (x<descInsetsX) {
                 x = descInsetsX;
             }
             
             textRect = CGRectMake(x, CGRectGetMinY(arrowRect) - space - textSize.height, textSize.width, textSize.height);
-            break;
-        }
+
+            CGFloat disWidth = textRect.origin.y;
+            if (disWidth< 0) {
+                arrowRect.origin.x -= disWidth;
+                textRect.origin.x -= disWidth;
+            }
+            
+            CGFloat disHeight = CGRectGetHeight(self.bounds) - CGRectGetMinY(textRect)-space - textSize.height;
+            if (disHeight< 0) {
+                if (-disHeight <= space*2) {
+                    arrowRect.origin.y -= disHeight/2;
+                    textRect.origin.y -= disHeight;
+                }else{
+                    arrowRect = CGRectZero;
+                    if (CGRectGetMinY(obtainFrame)-space -textSize.height >= 0) {
+                        textRect.origin.y = CGRectGetMinY(obtainFrame)-space;
+                    }else{
+                        textRect.origin.y = CGRectGetMinY(obtainFrame);
+                    }
+                }
+            }
+            
+        } break;
         case ZWMGuideMaskItemRegionRightBottom:
         {
             /// 右下
             transform = CGAffineTransformMakeScale(1, -1);
-            arrowRect = CGRectMake(CGRectGetMidX([self obtainVisualFrame]) - imgSize.width * 0.5,
-                                   CGRectGetMinY([self obtainVisualFrame]) - space - imgSize.height,
-                                   imgSize.width,
-                                   imgSize.height);
-            
-            CGFloat x = 0;
-            
-            if (textSize.width < CGRectGetWidth([self obtainVisualFrame]))
-            {
-                x = CGRectGetMinX(arrowRect) - textSize.width * 0.5;
-            }
-            else
-            {
-                x = descInsetsX + maxWidth - textSize.width;
+            arrowRect = CGRectMake(CGRectGetMidX(obtainFrame) - imgSize.width * 0.5,
+                                   CGRectGetMinY(obtainFrame) - space - imgSize.height,
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetWidth(self.bounds) - descInsetsX * 2;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            CGFloat x = CGRectGetMidX(obtainFrame) - textSize.width/2;
+            if (x+textSize.width > CGRectGetWidth(self.bounds) - descInsetsX) {
+                x = descInsetsX;
             }
             
             textRect = CGRectMake(x, CGRectGetMinY(arrowRect) - space - textSize.height, textSize.width, textSize.height);
-            break;
-        }
+            
+            CGFloat disHeight = CGRectGetHeight(self.bounds) - CGRectGetMinY(textRect)-space - textSize.height;
+            if (disHeight< 0) {
+                if (-disHeight <= space*2) {
+                    arrowRect.origin.y -= disHeight/2;
+                    textRect.origin.y -= disHeight;
+                }else{
+                    arrowRect = CGRectZero;
+                    if (CGRectGetMinY(obtainFrame)-space -textSize.height >= 0) {
+                        textRect.origin.y = CGRectGetMinY(obtainFrame)-space;
+                    }else{
+                        textRect.origin.y = CGRectGetMinY(obtainFrame);
+                    }
+                }
+            }
+           
+        } break;
+
+        case ZWMGuideMaskItemRegionLeft: {
+
+            transform = CGAffineTransformMakeRotation(M_PI*1.5); // 旋转 270
+            arrowRect = CGRectMake(CGRectGetMaxX(obtainFrame) + space,
+                                   CGRectGetMidY(obtainFrame) -imgSize.height/2,
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetWidth(self.bounds) - CGRectGetMaxX(arrowRect) - space - descInsetsX;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            CGFloat x = CGRectGetMaxX(arrowRect) + space;
+            textRect = CGRectMake(x, CGRectGetMidY(obtainFrame)-textSize.height/2, textSize.width, textSize.height);
+
+            if (textSize.height > CGRectGetHeight(self.bounds)-descInsetsX*2) {
+                if (textSize.height <= CGRectGetHeight(self.bounds)) {
+                    textRect.origin.y = (CGRectGetHeight(self.bounds)-textSize.height)/2;
+                }else{
+                    textRect.origin.y = 0;
+                }
+            }else{
+                if (CGRectGetMinY(textRect)<descInsetsX) {
+                    textRect.origin.y = descInsetsX;
+                }else if(CGRectGetHeight(self.bounds)-CGRectGetMaxY(textRect) < descInsetsX){
+                    textRect.origin.y = CGRectGetHeight(self.bounds) - CGRectGetHeight(textRect) - descInsetsX;
+                }
+            }
+            
+        } break;
+            
+        case ZWMGuideMaskItemRegionRight: {
+            transform = CGAffineTransformRotate(CGAffineTransformMakeScale(1, 1), M_PI*0.5); // 旋转 90
+            arrowRect = CGRectMake(CGRectGetMinX(obtainFrame)-imgSize.width-space,
+                                   CGRectGetMidY(obtainFrame),
+                                   imgSize.width, imgSize.height);
+
+            CGFloat maxWidth = CGRectGetMinX(arrowRect) - space - descInsetsX;
+            CGSize textSize  = [desc boundingRectWithSize:CGSizeMake(maxWidth, CGFLOAT_MAX) options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attrs context:NULL].size;
+
+            CGFloat x = CGRectGetMinX(arrowRect) - space - textSize.width;
+            
+            textRect = CGRectMake(x, CGRectGetMidY(obtainFrame)-textSize.height/2, textSize.width, textSize.height);
+
+            if (textSize.height > CGRectGetHeight(self.bounds)-descInsetsX*2) {
+                if (textSize.height <= CGRectGetHeight(self.bounds)) {
+                    textRect.origin.y = (CGRectGetHeight(self.bounds)-textSize.height)/2;
+                }else{
+                    textRect.origin.y = 0;
+                }
+            }else{
+                if (CGRectGetMinY(textRect)<descInsetsX) {
+                    textRect.origin.y = descInsetsX;
+                }else if(CGRectGetHeight(self.bounds)-CGRectGetMaxY(textRect) < descInsetsX){
+                    textRect.origin.y = CGRectGetHeight(self.bounds) - CGRectGetHeight(textRect) - descInsetsX;
+                }
+            }
+           
+        } break;
     }
     
     /// 图片 和 文字的动画
@@ -323,11 +437,18 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
     }
     
     UIView *view = [self.dataSource guideMaskView:self viewForItemAtIndex:self.currentIndex];
-    
-    CGRect visualRect = [self convertRect:view.frame fromView:view.superview];
+
+    CGRect visualRect = CGRectZero;
+    if ([view isKindOfClass:[UIView class]]) {
+        visualRect = [self convertRect:view.frame fromView:view.superview];
+    }else if ([view isKindOfClass:[NSValue class]]){
+        visualRect = [((NSValue *)view) CGRectValue];
+    }else{
+        CGRectMake(CGRectGetWidth(self.bounds)/2, CGRectGetHeight(self.bounds)/2, 1, 1);
+    }
     
     /// 每个 item 的 view 与蒙板的边距
-    UIEdgeInsets maskInsets = UIEdgeInsetsMake(-8, -8, -8, -8);
+    UIEdgeInsets maskInsets = UIEdgeInsetsMake(ZWMNormal_RectMargin,ZWMNormal_RectMargin,ZWMNormal_RectMargin,ZWMNormal_RectMargin);
     
     if (self.delegate && [self.delegate respondsToSelector:@selector(guideMaskView:insetsForItemAtIndex:)])
     {
@@ -347,34 +468,50 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
  */
 - (ZWMGuideMaskItemRegion)obtainVisualRegion
 {
+    CGRect obtainFrame = [self obtainVisualFrame];
     /// 可见区域的中心坐标
-    CGPoint visualCenter = CGPointMake(CGRectGetMidX([self obtainVisualFrame]),
-                                       CGRectGetMidY([self obtainVisualFrame]));
+    CGPoint visualCenter = CGPointMake(CGRectGetMidX(obtainFrame), CGRectGetMidY(obtainFrame));
     /// self.view 的中心坐标
-    CGPoint viewCenter   = CGPointMake(CGRectGetMidX(self.bounds),
-                                       CGRectGetMidY(self.bounds));
-    
-    if ((visualCenter.x <= viewCenter.x)    &&
-        (visualCenter.y <= viewCenter.y))
+    CGPoint viewCenter   = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
+
+    if ((visualCenter.x <= viewCenter.x)    && (visualCenter.y <= viewCenter.y))
     {
+        CGFloat spaceX = CGRectGetWidth(self.bounds)-CGRectGetMaxX(obtainFrame);
+        CGFloat spaceY = CGRectGetHeight(self.bounds)-CGRectGetMaxY(obtainFrame);
+        if (spaceX >= spaceY) {
+            return ZWMGuideMaskItemRegionLeft;
+        }
         /// 当前显示的视图在左上角
         return ZWMGuideMaskItemRegionLeftTop;
     }
     
-    if ((visualCenter.x > viewCenter.x)     &&
-        (visualCenter.y <= viewCenter.y))
+    if ((visualCenter.x > viewCenter.x)     && (visualCenter.y <= viewCenter.y))
     {
+        CGFloat spaceX = CGRectGetMinX(obtainFrame);
+        CGFloat spaceY = CGRectGetHeight(self.bounds)-CGRectGetMaxY(obtainFrame);
+        if (spaceX >= spaceY) {
+            return ZWMGuideMaskItemRegionRight;
+        }
         /// 当前显示的视图在右上角
         return ZWMGuideMaskItemRegionRightTop;
     }
     
-    if ((visualCenter.x <= viewCenter.x)    &&
-        (visualCenter.y > viewCenter.y))
+    if ((visualCenter.x <= viewCenter.x)    && (visualCenter.y > viewCenter.y))
     {
+        CGFloat spaceX = CGRectGetWidth(self.bounds)-CGRectGetMaxX(obtainFrame);
+        CGFloat spaceY = CGRectGetMinY(obtainFrame);
+        if (spaceX >= spaceY) {
+            return ZWMGuideMaskItemRegionLeft;
+        }
         /// 当前显示的视图在左下角
         return ZWMGuideMaskItemRegionLeftBottom;
     }
-    
+
+    CGFloat spaceX = CGRectGetMinX(obtainFrame);
+    CGFloat spaceY = CGRectGetMinY(obtainFrame);
+    if (spaceX >= spaceY) {
+        return ZWMGuideMaskItemRegionRight;
+    }
     /// 当前显示的视图在右下角
     return ZWMGuideMaskItemRegionRightBottom;
 }
@@ -415,12 +552,12 @@ typedef NS_ENUM(NSInteger, ZWMGuideMaskItemRegion)
  */
 - (void)hide
 {
+    if([self.dataSource respondsToSelector:@selector(guideMaskViewWillHide:)]){
+        [self.dataSource guideMaskViewWillHide:self];
+    }
     [UIView animateWithDuration:.3f animations:^{
-        
         self.alpha = 0;
-        
     } completion:^(BOOL finished) {
-        
         [self removeFromSuperview];
     }];
 }
