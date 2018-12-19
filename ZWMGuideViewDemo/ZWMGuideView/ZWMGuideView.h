@@ -6,6 +6,49 @@
 //  Copyright © 2017年 com.zhongzhou. All rights reserved.
 //
 
+/**
+ _viewsList = @[
+ self.textLabel,
+ self.imgView,
+ self.btnShowThemeList,
+ [NSValue valueWithCGRect:CGRectMake(CGRectGetWidth(self.view.bounds)-64, 20, 54, 44)],
+ ];
+ _msgList = @[
+ @"这里显示提示文字",
+ @"这里主题图片",
+ @"点击编辑主题",
+ @"测试主题功能"
+ ];
+
+ if (!_zGuideView) {
+ _zGuideView = [[ZWMGuideView alloc] initWithFrame:self.view.bounds];
+ [self.view addSubview:_zGuideView];
+ _zGuideView.dataSource = (id)self;
+ [_zGuideView show];
+ }
+
+ 
+ // Item的个数
+ - (NSInteger)numberOfItemsInGuideMaskView:(ZWMGuideView *)guideMaskView
+ {
+ return _viewsList.count;
+ }
+
+ // 每个Item对应的的view
+ - (UIView *)guideMaskView:(ZWMGuideView *)guideMaskView viewForItemAtIndex:(NSInteger)index
+ {
+ return _viewsList[index];
+ }
+
+ // 每个Item对应的的描述
+ - (NSString *)guideMaskView:(ZWMGuideView *)guideMaskView descriptionLabelForItemAtIndex:(NSInteger)index
+ {
+    return _msgList[index];
+ }
+
+
+ */
+
 #import <UIKit/UIKit.h>
 
 @class ZWMGuideView;
@@ -37,6 +80,9 @@
  描述文字的大小：默认15
  */
 - (UIFont *)guideMaskView:(ZWMGuideView *)guideMaskView fontForDescriptionLabelAtIndex:(NSInteger)index;
+
+// 界面显示结束前回调.
+- (void)guideMaskViewWillHide:(ZWMGuideView *)guideMaskView;
 
 @end
 
